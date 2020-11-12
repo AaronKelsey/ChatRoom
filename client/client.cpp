@@ -4,13 +4,14 @@
 // Author:      Aaron Kelsey
 //
 
-
 #include <iostream>
 #include <string>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
 
-int cleanupWSA();
+#include "socket.h"
+
+#define no_init_all
 
 int main(int argc, char* argv[])
 {
@@ -23,44 +24,12 @@ int main(int argc, char* argv[])
 
   char* cServerAddress = argv[1];
   int iPort = std::stoi(argv[2]);
-  char cMsg[1000];
 
-  WSADATA oWsaData;
-  int     oNret;
-  SOCKADDR_IN oServerInfo;
+  Socket oClientSocket;
 
-  // Initialise WinSock2 with version 2.2
-  if (WSAStartup(MAKEWORD(2, 2), &oWsaData) != 0)
+  if (oClientSocket.connect(iPort, cServerAddress) == SOCKET_ERROR)
   {
-    std::cerr << "WSAStartup failed with error: " + WSAGetLastError() << std::endl;
-    return 0;
-  }
-  else
-  {
-    std::cout << "Winsock successfully found" << std::endl;
-  }
-
-  // Create listening socket
-  SOCKET oClientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (oClientSocket == INVALID_SOCKET)
-  {
-    std::cerr << "Error creating socket: " << WSAGetLastError() << std::endl;
-    cleanupWSA();
-  }
-
-  InetPton(AF_INET, cServerAddress, &oServerInfo.sin_addr.s_addr);
-
-  // Address information
-  oServerInfo.sin_family = AF_INET;
-  oServerInfo.sin_port   = htons(iPort); // Convert port to network-byte order
-
-  // Connect to server
-  oNret = connect(oClientSocket, (sockaddr*)&oServerInfo, sizeof(oServerInfo));
-
-  if (oNret == SOCKET_ERROR)
-  {
-    std::cerr << "Error connecting to server: " << WSAGetLastError() << std::endl;
-    cleanupWSA();
+    std::cerr << "Error enabling socket for listening" << std::endl;
   }
 
   std::cout << "Connected to server" << std::endl;
@@ -75,12 +44,10 @@ int main(int argc, char* argv[])
 
     std::string sInput;
     std::getline(std::cin, sInput);
-    memset(&cMsg, 0, sizeof(cMsg));
-    strcpy_s(cMsg, sInput.c_str());
 
     if (sInput == "exit")
     {
-      bytesSent = send(oClientSocket, (char*)&cMsg, static_cast<int>(strlen(cMsg)), 0);
+      bytesSent += oClientSocket.send(sInput);
       if (bytesSent == SOCKET_ERROR)
       {
         std::cerr << "Send failed" << WSAGetLastError() << std::endl;
@@ -89,7 +56,7 @@ int main(int argc, char* argv[])
       break;
     }
 
-    bytesSent += send(oClientSocket, (char*)&cMsg, static_cast<int>(strlen(cMsg)), 0);
+    bytesSent += oClientSocket.send(sInput);
     if (bytesSent == SOCKET_ERROR)
     {
       std::cerr << "Send failed" << WSAGetLastError() << std::endl;
@@ -97,8 +64,8 @@ int main(int argc, char* argv[])
 
     std::cout << "Awaiting server response" << std::endl;
 
-    memset(&cMsg, 0, sizeof(cMsg));
-    bytesReceived += recv(oClientSocket, (char*)&cMsg, sizeof(cMsg), 0);
+    std::string sBuffer = "";
+    bytesReceived += oClientSocket.receive(sBuffer);
 
     if (bytesReceived == SOCKET_ERROR)
     {
@@ -106,40 +73,23 @@ int main(int argc, char* argv[])
     }
     else
     {
-      if (!strcmp(cMsg, "exit"))
+      if (sBuffer == "exit")
       {
         std::cout << "Client has disconnected from the session" << std::endl;
         break;
       }
 
-      std::cout << "Server: " << cMsg << std::endl;
+      std::cout << "Server: " << sBuffer << std::endl;
     }
   }
   
   std::cout << "Bytes sent: " << bytesSent << std::endl;
   std::cout << "Bytes received: " << bytesReceived << std::endl;
 
-  closesocket(oClientSocket);
-
-  // Shutdown winsock
-  cleanupWSA();
+  // CLose socket and clean up
+  oClientSocket.close();
 
   std::cout << "Connection closed" << std::endl;
   return 0;
 
-}
-
-int cleanupWSA()
-{
-  // Cleanup 
-  if (WSACleanup() == SOCKET_ERROR)
-  {
-    std::cerr << "WSASCleanup failed with error: " + WSAGetLastError() << std::endl;
-  }
-  else
-  {
-    std::cout << "Winsock successfully cleaned up" << std::endl;
-  }
-
-  return 0;
 }

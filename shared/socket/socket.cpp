@@ -5,9 +5,13 @@
 //
 
 #include "socket.h"
+#include <string>
 
 Socket::Socket()
 {
+  bClosed = false; 
+  bConnected = true; 
+
   if (WSAStartup(MAKEWORD(2, 2), &oWsaData) != 0)
   {
     std::cerr << "WSAStartup failed with error: " + WSAGetLastError() << std::endl;
@@ -29,6 +33,15 @@ Socket::Socket()
 Socket::~Socket()
 {
   close();
+
+  if (WSACleanup() == SOCKET_ERROR)
+  {
+    std::cerr << "WSASCleanup failed with error: " + WSAGetLastError() << std::endl;
+  }
+  else
+  {
+    std::cout << "Winsock successfully cleaned up" << std::endl;
+  }
 }
 
 int Socket::connect(const int iPort, const std::string& sAddress)
@@ -40,13 +53,15 @@ int Socket::connect(const int iPort, const std::string& sAddress)
   oServerInfo.sin_port = htons(iPort); // Convert port to network-byte order
 
   // Connect to server
-  iReturnValue = ::connect(this->oSocket, (sockaddr*)&oServerInfo, sizeof(oServerInfo));
+  int iReturnValue = ::connect(this->oSocket, (sockaddr*)&oServerInfo, sizeof(oServerInfo));
 
   if (iReturnValue == SOCKET_ERROR)
   {
     std::cerr << "Error connecting to server: " << WSAGetLastError() << std::endl;
     close();
   }
+
+  bConnected = true;
 
   return iReturnValue;
 }
@@ -60,7 +75,7 @@ int Socket::bind(const int iPort)
   oServerInfo.sin_port = htons(iPort); // Convert port to network-byte order
 
   // Bind the socket to local server address
-  iReturnValue = ::bind(this->oSocket, (LPSOCKADDR)&oServerInfo, sizeof(struct sockaddr));
+  int iReturnValue = ::bind(this->oSocket, (LPSOCKADDR)&oServerInfo, sizeof(struct sockaddr));
 
   if (iReturnValue == SOCKET_ERROR)
   {
@@ -74,7 +89,7 @@ int Socket::bind(const int iPort)
 int Socket::listen(const int iBacklog)
 {
   // Allow socket to listen
-  iReturnValue = ::listen(this->oSocket, iBacklog); 
+  int iReturnValue = ::listen(this->oSocket, iBacklog);
 
   if (iReturnValue == SOCKET_ERROR)
   {
@@ -85,7 +100,7 @@ int Socket::listen(const int iBacklog)
   return iReturnValue;
 }
 
-SOCKET Socket::accept()
+std::shared_ptr<Socket> Socket::accept()
 {
   SOCKET oClientSocket;
   oClientSocket = ::accept(this->oSocket, NULL, NULL);
@@ -96,35 +111,38 @@ SOCKET Socket::accept()
     close();
   }
 
-  return oClientSocket;
+  std::shared_ptr<Socket> newSocket(new Socket());
+  newSocket->setSocket(oClientSocket);
+
+  return newSocket;
 }
 
-int Socket::send(char* cMessage)
+int Socket::send(const std::string& sMessage)
 {
-  int iLength = sizeof(cMessage);
-
-  int iBytesReceived = ::send(oSocket, (char*)&cMessage, iLength, 0);
+  int iBytesReceived = ::send(oSocket, sMessage.c_str(), static_cast<int>(sMessage.length()), 0);
 
   if (iBytesReceived == SOCKET_ERROR)
   {
-    std::cerr << "No bytes sent" << WSAGetLastError() << std::endl;
+    std::cerr << "No bytes sent - error:" << WSAGetLastError() << std::endl;
   }
 
   return iBytesReceived;
 }
 
-int Socket::receive(char* cMessage)
+int Socket::receive(std::string& sMessage)
 {
-  memset(cMessage, 0, sizeof(cMessage));
-  int iLength = sizeof(cMessage);
+  // Create buffer which received messages will be written to
+  char cBuffer[iBufferSize];
+  memset(&cBuffer, 0, sizeof(cBuffer));
 
-  int iBytesReceived = ::recv(oSocket, (char*)&cMessage, iLength, 0);
+  int iBytesReceived = ::recv(oSocket, (char*)&cBuffer, sizeof(cBuffer), 0);
 
   if (iBytesReceived == SOCKET_ERROR)
   {
-    std::cerr << "No bytes sent" << WSAGetLastError() << std::endl;
+    std::cerr << "No bytes recveived - error: " << WSAGetLastError() << std::endl;
   }
 
+  sMessage = std::string(cBuffer);
   return iBytesReceived;
 }
 
@@ -133,14 +151,6 @@ void Socket::close()
   if (!bClosed)
   {
     closesocket(oSocket);
-  }
-
-  if (WSACleanup() == SOCKET_ERROR)
-  {
-    std::cerr << "WSASCleanup failed with error: " + WSAGetLastError() << std::endl;
-  }
-  else
-  {
-    std::cout << "Winsock successfully cleaned up" << std::endl;
+    bClosed = false;
   }
 }

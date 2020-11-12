@@ -27,25 +27,25 @@ public:
   int connect(const int iPort, const std::string& sAddress);
   int bind(const int iPort);
   int listen(const int iBacklog);
-  SOCKET accept();
-  int send(char* cMessage);
-  int receive(char* cMessage);
+  std::shared_ptr<Socket> accept();
+  int send(const std::string& sMessage);
+  int receive(std::string& sMessage);
+
+  SOCKET getSocket() { return oSocket; }
 
   void close();
 
 private:
-  WSADATA oWsaData;
+  void setSocket(SOCKET socket) { oSocket = socket; }
 
+  WSADATA     oWsaData;
   SOCKADDR_IN oServerInfo;
-
-  SOCKET oSocket;
-
-  int iReturnValue;
-
-  int iPort;
+  SOCKET      oSocket;
 
   bool bConnected;
   bool bClosed;
+
+  static const int iBufferSize = 4000;
 };
 
 #endif // SOCKET_H

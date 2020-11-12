@@ -4,12 +4,13 @@
 // Author:      Aaron Kelsey
 //
 
-
 #include <iostream>
 #include <string>
 #include <WinSock2.h>
 
-int cleanupWSA();
+#include "socket.h"
+
+#define no_init_all
 
 int main(int argc, char* argv[])
 {
@@ -21,61 +22,25 @@ int main(int argc, char* argv[])
   }
 
   int iPort = std::stoi(argv[1]);
-  char cMsg[1000];
 
-  WSADATA oWsaData;
-  int     oNret;
+  Socket oListeningSocket;
 
-  // Initialise WinSock2 with version 2.2
-  if (WSAStartup(MAKEWORD(2, 2), &oWsaData) != 0)
+  if (oListeningSocket.bind(iPort) == SOCKET_ERROR)
   {
-    std::cerr << "WSAStartup failed with error: " + WSAGetLastError() << std::endl;
-    return 0;
-  }
-  else
-  {
-    std::cout << "Winsock successfully found" << std::endl;
+    std::cerr << "Binding failed" << std::endl;
+
   }
 
-  // Create listening socket
-  SOCKET oListeningSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (oListeningSocket == INVALID_SOCKET)
+  if (oListeningSocket.listen(10) == SOCKET_ERROR)
   {
-	  std::cerr << "Error creating socket: " << WSAGetLastError() << std::endl;
-    cleanupWSA();
+    std::cerr << "Error enabling socket for listening" << std::endl;
   }
 
-  // Address information
-  SOCKADDR_IN oServerInfo;
-  oServerInfo.sin_family        = AF_INET;
-  oServerInfo.sin_addr.s_addr   = INADDR_ANY; // Listen for any connection
-  oServerInfo.sin_port          = htons(iPort); // Convert port to network-byte order
+  std::shared_ptr<Socket> oClientSocket = oListeningSocket.accept();
 
-  // Bind the socket to local server address
-  oNret = bind(oListeningSocket, (LPSOCKADDR)&oServerInfo, sizeof(struct sockaddr));
-
-  if (oNret == SOCKET_ERROR)
+  if (oClientSocket->getSocket() == INVALID_SOCKET)
   {
-    std::cerr << "Error binding socket: " << WSAGetLastError() << std::endl;
-    cleanupWSA();
-  }
-
-  // Allow socket to listen
-  oNret = listen(oListeningSocket, 10); // Up to 10 waiting connections to be accepted
-
-  if (oNret == SOCKET_ERROR)
-  {
-    std::cerr << "Error enabling socket for listening: " << WSAGetLastError() << std::endl;
-    cleanupWSA();
-  }
-
-  SOCKET oClientSocket;
-  oClientSocket = accept(oListeningSocket, NULL, NULL);
-
-  if (oClientSocket == INVALID_SOCKET)
-  {
-    std::cerr << "Error waiting for client: " << WSAGetLastError() << std::endl;
-    cleanupWSA();
+    std::cerr << "Error accepting connection" << std::endl;
   }
 
   int bytesReceived = 0;
@@ -86,8 +51,13 @@ int main(int argc, char* argv[])
   {
     std::cout << "Awaiting client response..." << std::endl;
 
-    memset(&cMsg, 0, sizeof(cMsg));
-    bytesReceived += recv(oClientSocket, (char*)&cMsg, sizeof(cMsg), 0);
+    if (oClientSocket == nullptr)
+    {
+      std::cerr << "client socket null!" << std::endl;
+    }
+
+    std::string sBuffer = "";
+    bytesReceived += oClientSocket->receive(sBuffer);
 
     if (bytesReceived == SOCKET_ERROR)
     {
@@ -95,25 +65,24 @@ int main(int argc, char* argv[])
     }
     else
     {
-      if (!strcmp(cMsg, "exit"))
+      if (sBuffer == "exit")
       {
         std::cout << "Client has disconnected from the session" << std::endl;
         break;
       }
 
-      std::cout << "Client: " << cMsg << std::endl;
+      std::cout << "Client: " << sBuffer << std::endl;
     }
     
     std::cout << ">:";
 
     std::string sInput;
     std::getline(std::cin, sInput);
-    memset(&cMsg, 0, sizeof(cMsg));
-    strcpy_s(cMsg, sInput.c_str());
 
     if (sInput == "exit")
     {
-      bytesSent += send(oClientSocket, (char*)&cMsg, static_cast<int>(strlen(cMsg)), 0);
+      bytesSent += oClientSocket->send(sInput);
+
       if (bytesSent == SOCKET_ERROR)
       {
         std::cerr << "Send failed" << WSAGetLastError() << std::endl;
@@ -122,7 +91,8 @@ int main(int argc, char* argv[])
       break;
     }
 
-    bytesSent += send(oClientSocket, (char*)&cMsg, static_cast<int>(strlen(cMsg)), 0);
+    bytesSent += oClientSocket->send(sInput);
+
     if (bytesSent == SOCKET_ERROR)
     {
       std::cerr << "Send failed" << WSAGetLastError() << std::endl;
@@ -132,27 +102,10 @@ int main(int argc, char* argv[])
   std::cout << "Bytes sent: " << bytesSent << std::endl;
   std::cout << "Bytes received: " << bytesReceived << std::endl;
 
-  closesocket(oListeningSocket);
-  closesocket(oClientSocket);
-
-  // Shutdown winsock
-  cleanupWSA();
+  // Close socket and clean up
+  oListeningSocket.close();
+  oClientSocket->close();
 
   std::cout << "Connection closed." << std::endl;
-  return 0;
-}
-
-int cleanupWSA()
-{
-	// Cleanup 
-	if (WSACleanup() == SOCKET_ERROR)
-	{
-		std::cerr << "WSASCleanup failed with error: " + WSAGetLastError() << std::endl;
-	}
-	else
-	{
-		std::cout << "Winsock successfully cleaned up" << std::endl;
-	}
-
   return 0;
 }
