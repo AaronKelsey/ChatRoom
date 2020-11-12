@@ -12,7 +12,13 @@
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
 
-class Socket
+#ifdef SIMPLESOCKET_EXPORT
+  #define SIMPLESOCKET_API __declspec(dllexport)
+#else
+  #define SIMPLESOCKET_API __declspec(dllimport)
+#endif
+
+class SIMPLESOCKET_API Socket
 {
 public:
   Socket();
