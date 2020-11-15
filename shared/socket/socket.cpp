@@ -5,7 +5,9 @@
 //
 
 #include "socket.h"
-#include <string>
+
+#include <Ws2tcpip.h>
+#include <iostream>
 
 Socket::Socket()
 {
