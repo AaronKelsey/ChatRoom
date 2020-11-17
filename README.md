@@ -5,8 +5,10 @@ A simple Windows chat server which demonstrates the client-server model and sock
 
 ## About
 
-ChatRoom is a console-based chat server written in C++ for Windows environments. The client-server architecture is implemented using sockets  from the WinSock2 library to enable text-based communication using TCP.
+ChatRoom is a console-based chat server written in C++ for Windows environments. The client-server architecture is implemented using sockets from the Winsock2 library to enable text-based communication using TCP.
 
+
+Winsock2 has been put into a basic wrapper to provide an easy-to-use interface for basic socket operations and reduce code duplication between the client and server applications.
 
 ## How to Run
 
@@ -28,7 +30,7 @@ To connect as a client, open a command prompt, run client.exe and provide the po
 ## Planned Features
 
  - Client username
- - Multithreaded server connections
+ - Multithreaded client connections
  - Multi-platform support for Windows and Linux
 
 ## License
