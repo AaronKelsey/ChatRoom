@@ -8,6 +8,7 @@
 #define SOCKET_H
 
 #include <string>
+#include <memory>
 #include <WinSock2.h>
 
 #ifdef SIMPLESOCKET_EXPORT
